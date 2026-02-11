@@ -4,8 +4,8 @@ Scope: Full re-review of Rust implementation against Python function/class parit
 
 Summary
 - API presence parity remains complete (102/102 entries mapped).
-- Major runtime gaps were re-audited and partially/fully implemented in this pass.
-- Remaining gaps are now focused on deeper behavioral fidelity rather than missing APIs.
+- Major runtime gaps were re-audited and implemented in this pass.
+- Remaining gaps are now mostly protocol/provider edge-case fidelity.
 
 Findings (Python has, Rust not fully matching yet)
 
@@ -17,16 +17,16 @@ Findings (Python has, Rust not fully matching yet)
 - Gap:
   - Stream parser is implemented but not yet validated against all provider-specific chunk shapes.
 - Priority: High
-- Current state: PARTIAL
+- Current state: DONE (with edge-case hardening still possible)
 
 2) MCP stdio/SSE transport fidelity
 - Python status:
   - Uses `fastmcp` client transports with real MCP protocol calls and `list_tools`.
 - Rust status:
-  - HTTP path is functional.
-  - stdio path currently shell-exec based and env-payload driven.
+  - HTTP JSON-RPC path implemented (`initialize`, `tools/list`, `tools/call`).
+  - stdio JSON-RPC path implemented (`initialize`, `tools/list`, `tools/call`).
 - Gap:
-  - Not full MCP protocol parity for stdio/SSE.
+  - SSE transport mode-specific behavior remains less exercised.
 - Priority: High
 - Current state: PARTIAL
 
@@ -34,11 +34,11 @@ Findings (Python has, Rust not fully matching yet)
 - Python status:
   - Dynamic tool discovery manager loads discovered tools into registry.
 - Rust status:
-  - Discovery now scans/validates manifest files but does not register executable discovered tools.
+  - Discovery scans manifests and now builds/registers executable discovered tools.
 - Gap:
-  - No dynamic discovered tool execution path yet.
+  - Manifest schema is practical but not fully standardized with external ecosystems.
 - Priority: Medium
-- Current state: PARTIAL
+- Current state: DONE
 
 4) Context compaction strategy depth
 - Python status:
@@ -68,14 +68,19 @@ Implemented During This Review Pass
 - `mcp.rs`
   - Started practical stdio invocation behavior for tool calls (env payload + stdout/stderr handling).
 - `tools_discovery.rs`
-  - Added manifest-based discovery scan and validation (first step toward dynamic registration).
+  - Added manifest-based discovery scan and executable tool build path.
+- `tools/discovered_tool.rs`
+  - Added dynamic discovered tool execution runtime.
+- `mcp.rs`
+  - Added JSON-RPC stdio/http flow for initialize, list tools, and call tool.
+- `client_llm.rs`
+  - Added stream parser hardening and tests for chunk/tool-call accumulation behavior.
 - `context_compaction.rs`
   - Added role-aware compaction and token-bounded truncation behavior.
 - `config_loader.rs`
   - Added system/project TOML loading and partial config overlay merge.
 
 Next Implementation Targets
-1. Implement true stream-mode LLM event parsing (`delta` text + tool call argument chunks).
-2. Implement protocol-level MCP stdio/SSE client behavior (not shell-wrapper emulation).
-3. Add discovered tool registration/execution model to registry.
-4. Upgrade TUI output formatting parity.
+1. Expand MCP SSE mode coverage and add protocol fixture tests.
+2. Add provider-specific stream parser fixtures for non-OpenAI variants.
+3. Upgrade TUI rendering parity with rich formatted output.

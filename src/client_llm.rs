@@ -193,8 +193,7 @@ impl LLMClient {
     async fn parse_stream_response(&self, response: reqwest::Response) -> Result<Vec<StreamEvent>> {
         let mut events = Vec::new();
         let mut buffer = String::new();
-        let mut tool_calls: std::collections::HashMap<i64, (String, String, String)> =
-            std::collections::HashMap::new();
+        let mut tool_calls = std::collections::HashMap::<i64, (String, String, String)>::new();
 
         let mut stream = response.bytes_stream();
         while let Some(chunk) = stream.next().await {
@@ -203,81 +202,110 @@ impl LLMClient {
             buffer.push_str(&text);
 
             while let Some(pos) = buffer.find('\n') {
-                let line = buffer[..pos].trim().to_string();
+                let line = buffer[..pos].trim_end_matches('\r').trim().to_string();
                 buffer = buffer[pos + 1..].to_string();
-                if !line.starts_with("data: ") {
+                if !line.starts_with("data:") {
                     continue;
                 }
-                let payload = line.trim_start_matches("data: ").trim();
-                if payload == "[DONE]" {
+                let payload = line.trim_start_matches("data:").trim();
+                if Self::apply_stream_payload(payload, &mut events, &mut tool_calls) {
+                    buffer.clear();
                     break;
                 }
-                let Ok(v) = serde_json::from_str::<Value>(payload) else {
-                    continue;
-                };
-                let choice = v
-                    .get("choices")
-                    .and_then(|x| x.as_array())
-                    .and_then(|x| x.first())
-                    .cloned()
-                    .unwrap_or_default();
-                let delta = choice.get("delta").cloned().unwrap_or_default();
+            }
+        }
 
-                if let Some(content) = delta.get("content").and_then(|x| x.as_str()) {
+        Self::emit_tool_call_complete_events(&mut events, tool_calls);
+        Ok(events)
+    }
+
+    fn apply_stream_payload(
+        payload: &str,
+        events: &mut Vec<StreamEvent>,
+        tool_calls: &mut std::collections::HashMap<i64, (String, String, String)>,
+    ) -> bool {
+        if payload == "[DONE]" {
+            return true;
+        }
+        let Ok(v) = serde_json::from_str::<Value>(payload) else {
+            return false;
+        };
+        let choice = v
+            .get("choices")
+            .and_then(|x| x.as_array())
+            .and_then(|x| x.first())
+            .cloned()
+            .unwrap_or_default();
+        let delta = choice.get("delta").cloned().unwrap_or_default();
+
+        if let Some(content) = delta.get("content").and_then(|x| x.as_str()) {
+            events.push(StreamEvent {
+                event_type: StreamEventType::TextDelta,
+                data: serde_json::json!({"content": content}),
+            });
+        }
+
+        if let Some(tc_arr) = delta.get("tool_calls").and_then(|x| x.as_array()) {
+            for tc in tc_arr {
+                let idx = tc.get("index").and_then(|x| x.as_i64()).unwrap_or(0);
+                let entry = tool_calls.entry(idx).or_insert_with(|| {
+                    (
+                        tc.get("id")
+                            .and_then(|x| x.as_str())
+                            .unwrap_or_default()
+                            .to_string(),
+                        String::new(),
+                        String::new(),
+                    )
+                });
+                if entry.0.is_empty() {
+                    entry.0 = tc
+                        .get("id")
+                        .and_then(|x| x.as_str())
+                        .unwrap_or_default()
+                        .to_string();
+                }
+                if let Some(name) = tc
+                    .get("function")
+                    .and_then(|f| f.get("name"))
+                    .and_then(|x| x.as_str())
+                {
+                    entry.1 = name.to_string();
                     events.push(StreamEvent {
-                        event_type: StreamEventType::TextDelta,
-                        data: serde_json::json!({"content": content}),
+                        event_type: StreamEventType::ToolCallStart,
+                        data: serde_json::json!({"call_id": entry.0, "name": entry.1}),
                     });
                 }
-
-                if let Some(tc_arr) = delta.get("tool_calls").and_then(|x| x.as_array()) {
-                    for tc in tc_arr {
-                        let idx = tc.get("index").and_then(|x| x.as_i64()).unwrap_or(0);
-                        let entry = tool_calls.entry(idx).or_insert_with(|| {
-                            (
-                                tc.get("id")
-                                    .and_then(|x| x.as_str())
-                                    .unwrap_or_default()
-                                    .to_string(),
-                                String::new(),
-                                String::new(),
-                            )
-                        });
-                        if let Some(name) = tc
-                            .get("function")
-                            .and_then(|f| f.get("name"))
-                            .and_then(|x| x.as_str())
-                        {
-                            entry.1 = name.to_string();
-                            events.push(StreamEvent {
-                                event_type: StreamEventType::ToolCallStart,
-                                data: serde_json::json!({"call_id": entry.0, "name": entry.1}),
-                            });
-                        }
-                        if let Some(delta_args) = tc
-                            .get("function")
-                            .and_then(|f| f.get("arguments"))
-                            .and_then(|x| x.as_str())
-                        {
-                            entry.2.push_str(delta_args);
-                            events.push(StreamEvent {
-                                event_type: StreamEventType::ToolCallDelta,
-                                data: serde_json::json!({"call_id": entry.0, "name": entry.1, "arguments_delta": delta_args}),
-                            });
-                        }
-                    }
-                }
-
-                if let Some(reason) = choice.get("finish_reason").and_then(|x| x.as_str()) {
+                if let Some(delta_args) = tc
+                    .get("function")
+                    .and_then(|f| f.get("arguments"))
+                    .and_then(|x| x.as_str())
+                {
+                    entry.2.push_str(delta_args);
                     events.push(StreamEvent {
-                        event_type: StreamEventType::MessageComplete,
-                        data: serde_json::json!({"finish_reason": reason}),
+                        event_type: StreamEventType::ToolCallDelta,
+                        data: serde_json::json!({"call_id": entry.0, "name": entry.1, "arguments_delta": delta_args}),
                     });
                 }
             }
         }
 
-        for (_, (call_id, name, raw_args)) in tool_calls {
+        if let Some(reason) = choice.get("finish_reason").and_then(|x| x.as_str()) {
+            events.push(StreamEvent {
+                event_type: StreamEventType::MessageComplete,
+                data: serde_json::json!({"finish_reason": reason}),
+            });
+        }
+        false
+    }
+
+    fn emit_tool_call_complete_events(
+        events: &mut Vec<StreamEvent>,
+        tool_calls: std::collections::HashMap<i64, (String, String, String)>,
+    ) {
+        let mut entries: Vec<(i64, (String, String, String))> = tool_calls.into_iter().collect();
+        entries.sort_by_key(|(idx, _)| *idx);
+        for (_, (call_id, name, raw_args)) in entries {
             events.push(StreamEvent {
                 event_type: StreamEventType::ToolCallComplete,
                 data: serde_json::json!({
@@ -287,10 +315,67 @@ impl LLMClient {
                 }),
             });
         }
-        Ok(events)
     }
 
     pub async fn close(&self) -> Result<()> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn apply_stream_payload_collects_deltas_and_tool_chunks() {
+        let mut events = Vec::new();
+        let mut tool_calls = std::collections::HashMap::new();
+        let payload1 = r#"{"choices":[{"delta":{"content":"Hello"},"finish_reason":null}]}"#;
+        let payload2 = r#"{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"read_file","arguments":"{\"path\":\"a"}}]}}]}"#;
+        let payload3 = r#"{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":".rs\"}"}}]},"finish_reason":"tool_calls"}]}"#;
+
+        assert!(!LLMClient::apply_stream_payload(
+            payload1,
+            &mut events,
+            &mut tool_calls
+        ));
+        assert!(!LLMClient::apply_stream_payload(
+            payload2,
+            &mut events,
+            &mut tool_calls
+        ));
+        assert!(!LLMClient::apply_stream_payload(
+            payload3,
+            &mut events,
+            &mut tool_calls
+        ));
+
+        LLMClient::emit_tool_call_complete_events(&mut events, tool_calls);
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e.event_type, StreamEventType::TextDelta))
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e.event_type, StreamEventType::ToolCallDelta))
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e.event_type, StreamEventType::ToolCallComplete))
+        );
+    }
+
+    #[test]
+    fn apply_stream_payload_done_flag() {
+        let mut events = Vec::new();
+        let mut tool_calls = std::collections::HashMap::new();
+        assert!(LLMClient::apply_stream_payload(
+            "[DONE]",
+            &mut events,
+            &mut tool_calls
+        ));
     }
 }

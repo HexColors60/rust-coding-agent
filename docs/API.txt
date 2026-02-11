@@ -173,7 +173,7 @@ Core Rust Public APIs
 16) src/client_llm.rs
 - struct LLMClient
 - LLMClient::new(config)
-- LLMClient::chat(messages, tools) -> Result<Vec<StreamEvent>> PARTIAL (stream parsing + non-stream fallback implemented)
+- LLMClient::chat(messages, tools) -> Result<Vec<StreamEvent>> DONE (stream parsing + non-stream fallback + retries)
 - LLMClient::close() -> Result<()>
 
 17) src/tui.rs
@@ -191,7 +191,7 @@ Core Rust Public APIs
 - enum MCPServerStatus
 - struct MCPToolInfo
 - struct MCPClient::{new, connect}
-- struct MCPManager::{new, initialize, register_tools, shutdown, get_all_servers} PARTIAL
+- struct MCPManager::{new, initialize, register_tools, shutdown, get_all_servers} DONE (JSON-RPC stdio/http request flow)
 
 19.1) src/tools/mcp_tool.rs
 - struct MCPTool
@@ -216,7 +216,15 @@ Core Rust Public APIs
 21) src/tools_discovery.rs
 - struct ToolDiscoveryManager
 - ToolDiscoveryManager::new()
-- ToolDiscoveryManager::discover_all() -> Result<()> STUB
+- ToolDiscoveryManager::discover_all(cwd) -> Result<()>
+- ToolDiscoveryManager::build_tools(config) -> Vec<Arc<dyn Tool>>
+- ToolDiscoveryManager::discovered_files() -> Vec<PathBuf>
+
+21.1) src/tools/discovered_tool.rs
+- struct DiscoveredToolSpec
+- struct DiscoveredTool
+- DiscoveredTool::new(spec)
+- impl Tool for DiscoveredTool::execute
 
 22) src/utils_paths.rs
 - resolve_path(base, path) -> PathBuf
@@ -243,4 +251,4 @@ Python Function/Class Parity Summary
 - Total Python function/class entries detected: 102
 - Rust parity coverage:
   - API-present (DONE/PARTIAL/STUB): 102
-  - Full behavioral parity: mostly complete for core and advanced runtime; remaining PARTIAL area is MCP stdio transport fidelity.
+  - Full behavioral parity: largely complete. Remaining differences are provider/protocol edge-case fidelity, not missing core functionality.

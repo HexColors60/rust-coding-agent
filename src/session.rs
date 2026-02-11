@@ -51,7 +51,10 @@ impl Session {
     pub async fn initialize(&mut self) -> anyhow::Result<()> {
         self.mcp_manager.initialize(&self.config).await?;
         self.mcp_manager.register_tools(&mut self.tool_registry).await;
-        self.discovery_manager.discover_all()?;
+        self.discovery_manager.discover_all(&self.config.cwd)?;
+        for tool in self.discovery_manager.build_tools(&self.config) {
+            self.tool_registry.register(tool);
+        }
         self.context_manager = ContextManager::new(self.load_memory());
         Ok(())
     }

@@ -120,3 +120,29 @@ Implementation Status Log
   - Added non-stream fallback path when stream parse is empty/fails.
 - Validation:
   - `cargo check` PASS.
+
+[2026-02-11] IMPLEMENTED REQUESTED CONTINUATION (MCP + DISCOVERY + STREAM HARDENING)
+- Implemented protocol-level MCP flow:
+  - `src/mcp.rs`
+  - JSON-RPC stdio requests for:
+    - `initialize`
+    - `tools/list`
+    - `tools/call`
+  - JSON-RPC HTTP requests for:
+    - `initialize`
+    - `tools/list`
+    - `tools/call`
+- Implemented discovered tool runtime registration/execution:
+  - `src/tools/discovered_tool.rs`
+  - `src/tools_discovery.rs` upgraded to:
+    - discover manifests
+    - build executable tools
+  - `src/session.rs` now registers discovered tools at initialization.
+- Hardened stream parser + tests:
+  - `src/client_llm.rs`:
+    - added chunk payload helper/finalizer logic
+    - added tests for delta/tool-call accumulation and done marker
+
+[2026-02-11] RE-VALIDATION (POST CONTINUATION)
+- `cargo check` PASS.
+- `cargo test -q` PASS (2 tests).

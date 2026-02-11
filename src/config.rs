@@ -4,37 +4,53 @@ use anyhow::Result;
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ModelConfig {
     pub name: String,
     pub temperature: f32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ShellEnvironmentPolicy {
+    #[serde(default)]
     pub ignore_default_excludes: bool,
+    #[serde(default)]
     pub exclude_patterns: Vec<String>,
+    #[serde(default)]
     pub set_vars: Option<std::collections::HashMap<String, String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MCPServerConfig {
+    #[serde(default)]
     pub name: String,
+    #[serde(default)]
     pub enabled: bool,
+    #[serde(default)]
     pub transport: String,
+    #[serde(default)]
     pub command: Option<String>,
+    #[serde(default)]
     pub args: Vec<String>,
+    #[serde(default)]
     pub env: std::collections::HashMap<String, String>,
+    #[serde(default)]
     pub cwd: Option<PathBuf>,
+    #[serde(default)]
     pub url: Option<String>,
+    #[serde(default)]
     pub startup_timeout_sec: u64,
+    #[serde(default)]
     pub tools: Vec<MCPToolConfig>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MCPToolConfig {
+    #[serde(default)]
     pub name: String,
+    #[serde(default)]
     pub description: String,
+    #[serde(default)]
     pub input_schema: serde_json::Value,
 }
 
@@ -61,12 +77,23 @@ pub enum HookTrigger {
     OnError
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl Default for HookTrigger {
+    fn default() -> Self {
+        Self::BeforeTool
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct HookConfig {
+    #[serde(default)]
     pub trigger: HookTrigger,
+    #[serde(default)]
     pub enabled: bool,
+    #[serde(default)]
     pub command: Option<String>,
+    #[serde(default)]
     pub script: Option<String>,
+    #[serde(default)]
     pub timeout_sec: u64,
 }
 

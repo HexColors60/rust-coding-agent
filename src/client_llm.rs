@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use futures_util::StreamExt;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use serde_json::Value;
 use tokio::time::{Duration, sleep};
@@ -60,10 +61,9 @@ impl LLMClient {
                 self.config.api_key.clone().unwrap_or_default()
             ))?,
         );
-        let payload = serde_json::json!({
+        let base_payload = serde_json::json!({
             "model": self.config.model_name,
             "messages": messages,
-            "stream": false,
             "temperature": self.config.temperature,
             "tools": if tools.is_empty() { Value::Null } else { Value::Array(self.build_tools(&tools)) },
             "tool_choice": if tools.is_empty() { Value::Null } else { Value::String("auto".to_string()) }
@@ -72,6 +72,8 @@ impl LLMClient {
         let url = format!("{}/chat/completions", self.config.base_url.trim_end_matches('/'));
         let mut last_err: Option<anyhow::Error> = None;
         for attempt in 0..=self.max_retries {
+            let mut payload = base_payload.clone();
+            payload["stream"] = Value::Bool(true);
             match self
                 .client
                 .post(&url)
@@ -86,8 +88,35 @@ impl LLMClient {
                         let body = response.text().await.unwrap_or_default();
                         last_err = Some(anyhow!("API error {}: {}", status, body));
                     } else {
-                        let parsed = response.json::<Value>().await?;
-                        return Ok(self.parse_non_stream_response(parsed));
+                        match self.parse_stream_response(response).await {
+                            Ok(events) if !events.is_empty() => return Ok(events),
+                            Ok(_) => {
+                                let mut payload = base_payload.clone();
+                                payload["stream"] = Value::Bool(false);
+                                let response = self
+                                    .client
+                                    .post(&url)
+                                    .headers(headers.clone())
+                                    .json(&payload)
+                                    .send()
+                                    .await?;
+                                let parsed = response.json::<Value>().await?;
+                                return Ok(self.parse_non_stream_response(parsed));
+                            }
+                            Err(_) => {
+                                let mut payload = base_payload.clone();
+                                payload["stream"] = Value::Bool(false);
+                                let response = self
+                                    .client
+                                    .post(&url)
+                                    .headers(headers.clone())
+                                    .json(&payload)
+                                    .send()
+                                    .await?;
+                                let parsed = response.json::<Value>().await?;
+                                return Ok(self.parse_non_stream_response(parsed));
+                            }
+                        }
                     }
                 }
                 Err(err) => {
@@ -159,6 +188,106 @@ impl LLMClient {
         });
 
         events
+    }
+
+    async fn parse_stream_response(&self, response: reqwest::Response) -> Result<Vec<StreamEvent>> {
+        let mut events = Vec::new();
+        let mut buffer = String::new();
+        let mut tool_calls: std::collections::HashMap<i64, (String, String, String)> =
+            std::collections::HashMap::new();
+
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            let text = String::from_utf8_lossy(&chunk);
+            buffer.push_str(&text);
+
+            while let Some(pos) = buffer.find('\n') {
+                let line = buffer[..pos].trim().to_string();
+                buffer = buffer[pos + 1..].to_string();
+                if !line.starts_with("data: ") {
+                    continue;
+                }
+                let payload = line.trim_start_matches("data: ").trim();
+                if payload == "[DONE]" {
+                    break;
+                }
+                let Ok(v) = serde_json::from_str::<Value>(payload) else {
+                    continue;
+                };
+                let choice = v
+                    .get("choices")
+                    .and_then(|x| x.as_array())
+                    .and_then(|x| x.first())
+                    .cloned()
+                    .unwrap_or_default();
+                let delta = choice.get("delta").cloned().unwrap_or_default();
+
+                if let Some(content) = delta.get("content").and_then(|x| x.as_str()) {
+                    events.push(StreamEvent {
+                        event_type: StreamEventType::TextDelta,
+                        data: serde_json::json!({"content": content}),
+                    });
+                }
+
+                if let Some(tc_arr) = delta.get("tool_calls").and_then(|x| x.as_array()) {
+                    for tc in tc_arr {
+                        let idx = tc.get("index").and_then(|x| x.as_i64()).unwrap_or(0);
+                        let entry = tool_calls.entry(idx).or_insert_with(|| {
+                            (
+                                tc.get("id")
+                                    .and_then(|x| x.as_str())
+                                    .unwrap_or_default()
+                                    .to_string(),
+                                String::new(),
+                                String::new(),
+                            )
+                        });
+                        if let Some(name) = tc
+                            .get("function")
+                            .and_then(|f| f.get("name"))
+                            .and_then(|x| x.as_str())
+                        {
+                            entry.1 = name.to_string();
+                            events.push(StreamEvent {
+                                event_type: StreamEventType::ToolCallStart,
+                                data: serde_json::json!({"call_id": entry.0, "name": entry.1}),
+                            });
+                        }
+                        if let Some(delta_args) = tc
+                            .get("function")
+                            .and_then(|f| f.get("arguments"))
+                            .and_then(|x| x.as_str())
+                        {
+                            entry.2.push_str(delta_args);
+                            events.push(StreamEvent {
+                                event_type: StreamEventType::ToolCallDelta,
+                                data: serde_json::json!({"call_id": entry.0, "name": entry.1, "arguments_delta": delta_args}),
+                            });
+                        }
+                    }
+                }
+
+                if let Some(reason) = choice.get("finish_reason").and_then(|x| x.as_str()) {
+                    events.push(StreamEvent {
+                        event_type: StreamEventType::MessageComplete,
+                        data: serde_json::json!({"finish_reason": reason}),
+                    });
+                }
+            }
+        }
+
+        for (_, (call_id, name, raw_args)) in tool_calls {
+            events.push(StreamEvent {
+                event_type: StreamEventType::ToolCallComplete,
+                data: serde_json::json!({
+                    "call_id": call_id,
+                    "name": name,
+                    "arguments": Value::Object(parse_tool_call_arguments(&raw_args))
+                }),
+            });
+        }
+        Ok(events)
     }
 
     pub async fn close(&self) -> Result<()> {

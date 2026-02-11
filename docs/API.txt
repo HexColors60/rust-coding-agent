@@ -135,7 +135,7 @@ Core Rust Public APIs
 - struct ApprovalManager
 - ApprovalManager::new(policy, cwd) -> Self
 - ApprovalManager::check_approval(ctx) -> ApprovalDecision
-- ApprovalManager::request_confirmation(ctx) -> bool PARTIAL
+- ApprovalManager::request_confirmation(ctx) -> bool DONE
 
 12) src/context_manager.rs
 - struct MessageItem
@@ -173,7 +173,7 @@ Core Rust Public APIs
 16) src/client_llm.rs
 - struct LLMClient
 - LLMClient::new(config)
-- LLMClient::chat(messages, tools) -> Result<Vec<StreamEvent>> DONE (OpenAI-compatible non-stream + retries)
+- LLMClient::chat(messages, tools) -> Result<Vec<StreamEvent>> PARTIAL (stream parsing + non-stream fallback implemented)
 - LLMClient::close() -> Result<()>
 
 17) src/tui.rs

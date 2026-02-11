@@ -178,10 +178,43 @@ impl MCPClient {
             return Ok(json);
         }
 
-        Ok(serde_json::json!({
-            "output": format!("MCP stdio tool '{}' invoked (placeholder)", tool_name),
-            "is_error": false
-        }))
+        let command = self.config.command.clone().unwrap_or_default();
+        if command.trim().is_empty() {
+            return Err(anyhow!("No MCP stdio command configured for {}", self.name));
+        }
+        #[cfg(target_os = "windows")]
+        let mut cmd = {
+            let mut c = Command::new("cmd.exe");
+            c.arg("/c").arg(command);
+            c
+        };
+        #[cfg(not(target_os = "windows"))]
+        let mut cmd = {
+            let mut c = Command::new("/bin/bash");
+            c.arg("-c").arg(command);
+            c
+        };
+        cmd.current_dir(self.config.cwd.clone().unwrap_or_else(|| self.cwd.clone()));
+        cmd.envs(self.config.env.clone());
+        cmd.env("AI_AGENT_TOOL_NAME", tool_name);
+        cmd.env("AI_AGENT_TOOL_PARAMS", arguments.to_string());
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::piped());
+
+        let output = timeout(
+            Duration::from_secs(self.config.startup_timeout_sec.max(1)),
+            cmd.output(),
+        )
+        .await
+        .map_err(|_| anyhow!("MCP stdio tool call timed out"))??;
+
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        if output.status.success() {
+            Ok(serde_json::json!({"output": stdout.trim(), "is_error": false}))
+        } else {
+            Ok(serde_json::json!({"output": if stderr.trim().is_empty() { stdout.trim() } else { stderr.trim() }, "is_error": true}))
+        }
     }
 }
 

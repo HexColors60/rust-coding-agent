@@ -89,3 +89,34 @@ Implementation Status Log
 - Behavioral parity:
   - DONE: core runtime + web search + hooks + LLM non-stream tool orchestration + MCP HTTP path.
   - PARTIAL: MCP stdio transport fidelity and full streaming-equivalent LLM delta semantics.
+
+[2026-02-11] REVIEW + STARTED IMPLEMENTATION PASS
+- Added full parity re-review document:
+  - `docs/REVIEW.txt`
+- Started implementation on reviewed non-done areas:
+  - Interactive approval confirmation:
+    - `src/approval.rs`
+  - Subagent real execution (replacing placeholder):
+    - `src/tools/subagents.rs`
+  - MCP stdio tool call execution path (shell command with tool env payload):
+    - `src/mcp.rs`
+  - Discovery initial implementation (manifest scan/validation):
+    - `src/tools_discovery.rs`
+  - Context compaction improved with role-aware truncation:
+    - `src/context_compaction.rs`
+  - Config loader upgraded with system/project TOML overlay:
+    - `src/config_loader.rs`
+- Validation:
+  - `cargo check` PASS after changes.
+
+[2026-02-11] ADDITIONAL STARTED WORK (STREAMING)
+- `src/client_llm.rs`:
+  - Added stream response parsing for SSE chunks (`data:` lines) with:
+    - `TextDelta`
+    - `ToolCallStart`
+    - `ToolCallDelta`
+    - `ToolCallComplete`
+    - `MessageComplete`
+  - Added non-stream fallback path when stream parse is empty/fails.
+- Validation:
+  - `cargo check` PASS.

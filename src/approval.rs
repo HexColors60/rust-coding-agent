@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::io::{self, Write};
 
 use crate::config::ApprovalPolicy;
 
@@ -75,7 +76,29 @@ impl ApprovalManager {
         }
     }
 
-    pub fn request_confirmation(&self, _ctx: &ApprovalContext) -> bool {
-        false
+    pub fn request_confirmation(&self, ctx: &ApprovalContext) -> bool {
+        println!();
+        println!("Approval required");
+        println!("tool: {}", ctx.tool_name);
+        println!("mutating: {}", ctx.is_mutating);
+        if let Some(command) = &ctx.command {
+            println!("command: {}", command);
+        }
+        if !ctx.affected_paths.is_empty() {
+            println!("paths:");
+            for p in &ctx.affected_paths {
+                println!("  - {}", p.display());
+            }
+        }
+        if ctx.is_dangerous {
+            println!("warning: operation marked dangerous");
+        }
+        print!("Approve? [y/N]: ");
+        let _ = io::stdout().flush();
+        let mut input = String::new();
+        if io::stdin().read_line(&mut input).is_err() {
+            return false;
+        }
+        matches!(input.trim().to_lowercase().as_str(), "y" | "yes")
     }
 }

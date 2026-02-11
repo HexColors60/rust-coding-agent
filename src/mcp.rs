@@ -10,6 +10,7 @@ use tokio::process::Command;
 use tokio::time::{Duration, timeout};
 
 use crate::config::{Config, MCPServerConfig};
+use crate::mcp_subfuncta::parse_sse_events;
 use crate::registry::ToolRegistry;
 use crate::tools::mcp_tool::MCPTool;
 
@@ -75,8 +76,11 @@ impl MCPClient {
         }
         self.set_status(MCPServerStatus::Connecting);
 
+        let transport = self.config.transport.to_lowercase();
         let result = if self.config.command.is_some() {
             self.connect_stdio().await
+        } else if transport == "sse" {
+            self.connect_sse().await
         } else if self.config.url.is_some() {
             self.connect_http().await
         } else {
@@ -108,6 +112,18 @@ impl MCPClient {
             .send_http_request("initialize", json!({"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"rust-coding-agent","version":"0.1.0"}}))
             .await?;
         let list = self.send_http_request("tools/list", json!({})).await?;
+        self.load_tools_from_list_result(list.get("result").cloned().unwrap_or_default());
+        Ok(())
+    }
+
+    async fn connect_sse(&self) -> Result<()> {
+        let _ = self
+            .send_sse_request(
+                "initialize",
+                json!({"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"rust-coding-agent","version":"0.1.0"}}),
+            )
+            .await?;
+        let list = self.send_sse_request("tools/list", json!({})).await?;
         self.load_tools_from_list_result(list.get("result").cloned().unwrap_or_default());
         Ok(())
     }
@@ -274,6 +290,30 @@ impl MCPClient {
         Ok(json)
     }
 
+    async fn send_sse_request(&self, method: &str, params: Value) -> Result<Value> {
+        let url = self
+            .config
+            .url
+            .clone()
+            .ok_or_else(|| anyhow!("No MCP SSE URL"))?;
+        let payload = json!({"jsonrpc":"2.0","id":1,"method":method,"params":params});
+        let response = reqwest::Client::builder()
+            .timeout(Duration::from_secs(self.config.startup_timeout_sec.max(1)))
+            .build()?
+            .post(url)
+            .header("accept", "text/event-stream")
+            .json(&payload)
+            .send()
+            .await?;
+        let text = response.text().await?;
+        let parsed = parse_sse_events(&text);
+        let first = parsed
+            .into_iter()
+            .find(|v| v.get("jsonrpc").is_some() || v.get("result").is_some())
+            .ok_or_else(|| anyhow!("SSE response did not contain JSON-RPC payload"))?;
+        Ok(first)
+    }
+
     pub async fn disconnect(&self) -> Result<()> {
         if let Ok(mut tools) = self.tools.write() {
             tools.clear();
@@ -285,6 +325,20 @@ impl MCPClient {
     pub async fn call_tool(&self, tool_name: &str, arguments: Value) -> Result<Value> {
         if self.status() != MCPServerStatus::Connected {
             return Err(anyhow!("Not connected to server {}", self.name));
+        }
+
+        let transport = self.config.transport.to_lowercase();
+        if transport == "sse" {
+            let response = self
+                .send_sse_request(
+                    "tools/call",
+                    json!({
+                        "name": tool_name,
+                        "arguments": arguments
+                    }),
+                )
+                .await?;
+            return Ok(self.parse_tools_call_response(response));
         }
 
         if self.config.url.is_some() {

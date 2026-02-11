@@ -11,6 +11,7 @@ pub mod context_manager;
 pub mod errors;
 pub mod hooks;
 pub mod mcp;
+mod mcp_subfuncta;
 pub mod persistence;
 pub mod prompts_system;
 pub mod registry;

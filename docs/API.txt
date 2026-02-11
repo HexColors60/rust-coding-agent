@@ -191,7 +191,10 @@ Core Rust Public APIs
 - enum MCPServerStatus
 - struct MCPToolInfo
 - struct MCPClient::{new, connect}
-- struct MCPManager::{new, initialize, register_tools, shutdown, get_all_servers} DONE (JSON-RPC stdio/http request flow)
+- struct MCPManager::{new, initialize, register_tools, shutdown, get_all_servers} DONE (JSON-RPC stdio/http/sse request flow)
+
+19.2) src/mcp_subfuncta.rs
+- parse_sse_events(text) -> Vec<Value>
 
 19.1) src/tools/mcp_tool.rs
 - struct MCPTool

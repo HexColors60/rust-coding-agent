@@ -146,3 +146,26 @@ Implementation Status Log
 [2026-02-11] RE-VALIDATION (POST CONTINUATION)
 - `cargo check` PASS.
 - `cargo test -q` PASS (2 tests).
+
+[2026-02-11] CONTINUED: MCP SSE COVERAGE + STREAM FIXTURE TESTS
+- Implemented MCP SSE-specific request/response behavior:
+  - `src/mcp.rs`
+  - Added `send_sse_request` and SSE event parser (`parse_sse_events`)
+  - Transport routing now supports `transport = "sse"`
+- Added MCP SSE parser tests in `src/mcp.rs`:
+  - single/multiline `data:` event parsing
+  - non-JSON event filtering
+- Added additional provider-specific stream parser fixture tests in `src/client_llm.rs`:
+  - noisy extra provider fields
+  - malformed tool-argument fragment fallback behavior
+- Re-validation:
+  - `cargo check` PASS
+  - `cargo test -q` PASS (6 tests)
+
+[2026-02-11] FILE SIZE RULE COMPLIANCE FIX
+- `src/mcp.rs` exceeded 500 lines during SSE work.
+- Split helper/test content into:
+  - `src/mcp_subfuncta.rs`
+- Final status:
+  - `src/mcp.rs` reduced to < 500 lines.
+  - All Rust source files remain below 500 lines.

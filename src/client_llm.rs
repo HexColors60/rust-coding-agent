@@ -325,6 +325,7 @@ impl LLMClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn apply_stream_payload_collects_deltas_and_tool_chunks() {
@@ -366,6 +367,13 @@ mod tests {
                 .iter()
                 .any(|e| matches!(e.event_type, StreamEventType::ToolCallComplete))
         );
+
+        let completed = events
+            .iter()
+            .find(|e| matches!(e.event_type, StreamEventType::ToolCallComplete))
+            .cloned()
+            .expect("missing tool call complete");
+        assert_eq!(completed.data["name"], json!("read_file"));
     }
 
     #[test]
@@ -377,5 +385,40 @@ mod tests {
             &mut events,
             &mut tool_calls
         ));
+    }
+
+    #[test]
+    fn apply_stream_payload_ignores_provider_extra_fields() {
+        let mut events = Vec::new();
+        let mut tool_calls = std::collections::HashMap::new();
+        let payload = r#"{"choices":[{"delta":{"role":"assistant","content":"A","reasoning":"internal"},"finish_reason":null}],"provider":"openrouter"}"#;
+        assert!(!LLMClient::apply_stream_payload(
+            payload,
+            &mut events,
+            &mut tool_calls
+        ));
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0].event_type, StreamEventType::TextDelta));
+        assert_eq!(events[0].data["content"], json!("A"));
+    }
+
+    #[test]
+    fn emit_tool_call_complete_handles_malformed_json_arguments() {
+        let mut events = Vec::new();
+        let mut tool_calls = std::collections::HashMap::new();
+        tool_calls.insert(
+            0,
+            (
+                "call_bad".to_string(),
+                "web_fetch".to_string(),
+                "{bad-json".to_string(),
+            ),
+        );
+        LLMClient::emit_tool_call_complete_events(&mut events, tool_calls);
+        assert_eq!(events.len(), 1);
+        let event = &events[0];
+        assert!(matches!(event.event_type, StreamEventType::ToolCallComplete));
+        assert_eq!(event.data["call_id"], json!("call_bad"));
+        assert_eq!(event.data["arguments"]["raw"], json!("{bad-json"));
     }
 }

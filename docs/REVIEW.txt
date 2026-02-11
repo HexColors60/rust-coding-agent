@@ -15,7 +15,7 @@ Findings (Python has, Rust not fully matching yet)
 - Rust status:
   - Added SSE stream parsing with delta/tool-call chunk handling plus non-stream fallback.
 - Gap:
-  - Stream parser is implemented but not yet validated against all provider-specific chunk shapes.
+  - Core parser and provider fixture tests are in place; remaining work is larger provider matrix coverage.
 - Priority: High
 - Current state: DONE (with edge-case hardening still possible)
 
@@ -25,8 +25,9 @@ Findings (Python has, Rust not fully matching yet)
 - Rust status:
   - HTTP JSON-RPC path implemented (`initialize`, `tools/list`, `tools/call`).
   - stdio JSON-RPC path implemented (`initialize`, `tools/list`, `tools/call`).
+  - SSE request/response parsing path implemented for MCP event streams.
 - Gap:
-  - SSE transport mode-specific behavior remains less exercised.
+  - Long-lived SSE session behavior across diverse MCP servers still needs broader integration tests.
 - Priority: High
 - Current state: PARTIAL
 
@@ -65,8 +66,6 @@ Implemented During This Review Pass
   - Added interactive confirmation prompt for `NeedsConfirmation` operations.
 - `tools/subagents.rs`
   - Replaced placeholder with real subagent execution (nested agent run + timeout + result/tool summary).
-- `mcp.rs`
-  - Started practical stdio invocation behavior for tool calls (env payload + stdout/stderr handling).
 - `tools_discovery.rs`
   - Added manifest-based discovery scan and executable tool build path.
 - `tools/discovered_tool.rs`
@@ -75,12 +74,13 @@ Implemented During This Review Pass
   - Added JSON-RPC stdio/http flow for initialize, list tools, and call tool.
 - `client_llm.rs`
   - Added stream parser hardening and tests for chunk/tool-call accumulation behavior.
+  - Added provider-specific fixture tests for noisy fields and malformed argument fragments.
 - `context_compaction.rs`
   - Added role-aware compaction and token-bounded truncation behavior.
 - `config_loader.rs`
   - Added system/project TOML loading and partial config overlay merge.
 
 Next Implementation Targets
-1. Expand MCP SSE mode coverage and add protocol fixture tests.
-2. Add provider-specific stream parser fixtures for non-OpenAI variants.
+1. Add integration-style MCP SSE server fixture tests (long-lived stream/session).
+2. Expand stream fixtures for additional provider chunk variants (beyond current fixtures).
 3. Upgrade TUI rendering parity with rich formatted output.

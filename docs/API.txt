@@ -31,7 +31,7 @@ Tool Commands (Python tools/builtin parity)
 - list_dir -> tools::builtin::list_dir::ListDirTool DONE
 - grep -> tools::builtin::grep::GrepTool DONE
 - glob -> tools::builtin::glob::GlobTool DONE
-- web_search -> tools::builtin::web_search::WebSearchTool STUB
+- web_search -> tools::builtin::web_search::WebSearchTool DONE
 - web_fetch -> tools::builtin::web_fetch::WebFetchTool DONE
 - todos -> tools::builtin::todo::TodosTool DONE
 - memory -> tools::builtin::memory::MemoryTool DONE
@@ -67,7 +67,7 @@ Core Rust Public APIs
 - struct AgentEvent { event_type, data }
 - struct Agent { config, session, client }
 - Agent::new(config) -> Result<Agent>
-- Agent::run(message) -> Result<Vec<AgentEvent>> PARTIAL
+- Agent::run(message) -> Result<Vec<AgentEvent>> DONE (non-stream orchestration loop)
 
 5) src/session.rs
 - struct Session
@@ -121,7 +121,7 @@ Core Rust Public APIs
 - list_dir::ListDirTool::execute
 - grep::GrepTool::execute
 - glob::GlobTool::execute
-- web_search::WebSearchTool::execute STUB
+- web_search::WebSearchTool::execute
 - web_fetch::WebFetchTool::execute
 - todo::TodosTool::execute
 - memory::MemoryTool::execute
@@ -173,7 +173,7 @@ Core Rust Public APIs
 16) src/client_llm.rs
 - struct LLMClient
 - LLMClient::new(config)
-- LLMClient::chat(messages, tools) -> Result<Vec<StreamEvent>> STUB
+- LLMClient::chat(messages, tools) -> Result<Vec<StreamEvent>> DONE (OpenAI-compatible non-stream + retries)
 - LLMClient::close() -> Result<()>
 
 17) src/tui.rs
@@ -185,18 +185,18 @@ Core Rust Public APIs
 18) src/hooks.rs
 - enum HookTrigger
 - struct HookSystem
-- HookSystem::{new, trigger_before_run, trigger_after_run, trigger_before_tool, trigger_after_tool, trigger_on_error} STUB
+- HookSystem::{new, trigger_before_run, trigger_after_run, trigger_before_tool, trigger_after_tool, trigger_on_error} DONE
 
 19) src/mcp.rs
 - enum MCPServerStatus
 - struct MCPToolInfo
 - struct MCPClient::{new, connect}
-- struct MCPManager::{new, initialize, shutdown, get_all_servers} STUB/PARTIAL
+- struct MCPManager::{new, initialize, register_tools, shutdown, get_all_servers} PARTIAL
 
 19.1) src/tools/mcp_tool.rs
 - struct MCPTool
-- MCPTool::new(tool_name, tool_description, tool_schema)
-- impl Tool for MCPTool::execute STUB
+- MCPTool::new(client, tool_info, name)
+- impl Tool for MCPTool::execute DONE
 
 20) src/prompts_system.rs
 - get_system_prompt(...)
@@ -243,4 +243,4 @@ Python Function/Class Parity Summary
 - Total Python function/class entries detected: 102
 - Rust parity coverage:
   - API-present (DONE/PARTIAL/STUB): 102
-  - Full behavioral parity: not complete (advanced runtime integrations remain PARTIAL/STUB)
+  - Full behavioral parity: mostly complete for core and advanced runtime; remaining PARTIAL area is MCP stdio transport fidelity.

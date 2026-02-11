@@ -56,3 +56,36 @@ Implementation Status Log
       - MCP transport/tool execution internals
       - Hook script execution internals
       - Web search provider internals
+
+[2026-02-11] ADVANCED RUNTIME CLOSURE (CONTINUATION)
+- Implemented real web search provider behavior in `src/tools/builtin/web_search.rs`:
+  - DuckDuckGo HTML search request + result parsing + snippets + result limits.
+- Replaced placeholder `LLMClient` with OpenAI-compatible client in `src/client_llm.rs`:
+  - request/response tool schema wiring
+  - retry with exponential backoff
+  - non-stream response parsing for content + tool calls
+  - offline fallback when no API key is configured
+- Replaced hook stub with executable hook pipeline in `src/hooks.rs`:
+  - command/script execution
+  - timeout handling
+  - environment variable propagation
+  - before/after agent and tool triggers + error trigger
+- Upgraded MCP runtime in `src/mcp.rs` and `src/tools/mcp_tool.rs`:
+  - server lifecycle/status tracking
+  - config-driven tool registration
+  - HTTP tool invocation path
+  - stdio connectivity path
+  - MCPTool delegates execution to MCP client call path
+- Reworked `src/agent.rs` to run real orchestration loop:
+  - model call -> collect tool calls -> invoke tools -> feed tool outputs back -> continue until completion
+  - hook integration around agent/tool lifecycle
+
+[2026-02-11] RE-VALIDATION
+- Ran `cargo check` after advanced runtime updates.
+- Build status: PASS.
+
+[2026-02-11] CURRENT PARITY STATUS
+- API presence parity: 102/102 retained.
+- Behavioral parity:
+  - DONE: core runtime + web search + hooks + LLM non-stream tool orchestration + MCP HTTP path.
+  - PARTIAL: MCP stdio transport fidelity and full streaming-equivalent LLM delta semantics.

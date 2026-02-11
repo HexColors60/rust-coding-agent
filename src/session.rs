@@ -7,6 +7,7 @@ use crate::config::Config;
 use crate::context_compaction::ChatCompactor;
 use crate::context_loop_detector::LoopDetector;
 use crate::context_manager::ContextManager;
+use crate::hooks::HookSystem;
 use crate::mcp::MCPManager;
 use crate::registry::{ToolRegistry, create_default_registry};
 use crate::tools_discovery::ToolDiscoveryManager;
@@ -19,6 +20,7 @@ pub struct Session {
     pub mcp_manager: MCPManager,
     pub chat_compactor: ChatCompactor,
     pub approval_manager: ApprovalManager,
+    pub hook_system: HookSystem,
     pub loop_detector: LoopDetector,
     pub session_id: String,
     pub created_at: DateTime<Utc>,
@@ -35,6 +37,7 @@ impl Session {
             mcp_manager: MCPManager::new(),
             chat_compactor: ChatCompactor::new(),
             approval_manager: ApprovalManager::new(config.approval.clone(), config.cwd.clone()),
+            hook_system: HookSystem::new(config.clone()),
             loop_detector: LoopDetector::new(),
             session_id: Uuid::new_v4().to_string(),
             created_at: Utc::now(),
@@ -46,7 +49,8 @@ impl Session {
     }
 
     pub async fn initialize(&mut self) -> anyhow::Result<()> {
-        self.mcp_manager.initialize().await?;
+        self.mcp_manager.initialize(&self.config).await?;
+        self.mcp_manager.register_tools(&mut self.tool_registry).await;
         self.discovery_manager.discover_all()?;
         self.context_manager = ContextManager::new(self.load_memory());
         Ok(())

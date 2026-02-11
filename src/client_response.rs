@@ -10,8 +10,11 @@ pub struct TextDelta {
 pub enum StreamEventType {
     TextDelta,
     TextComplete,
+    ToolCallDelta,
     ToolCallStart,
     ToolCallComplete,
+    MessageComplete,
+    Error,
     AgentError,
     AgentEnd,
 }
@@ -50,5 +53,23 @@ pub struct ToolResultMessage {
 }
 
 pub fn parse_tool_call_arguments(arguments_str: &str) -> serde_json::Map<String, Value> {
-    serde_json::from_str(arguments_str).unwrap_or_default()
+    if arguments_str.trim().is_empty() {
+        return serde_json::Map::new();
+    }
+    match serde_json::from_str::<Value>(arguments_str) {
+        Ok(Value::Object(map)) => map,
+        Ok(other) => {
+            let mut map = serde_json::Map::new();
+            map.insert("value".to_string(), other);
+            map
+        }
+        Err(_) => {
+            let mut map = serde_json::Map::new();
+            map.insert(
+                "raw".to_string(),
+                Value::String(arguments_str.to_string()),
+            );
+            map
+        }
+    }
 }

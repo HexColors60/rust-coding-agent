@@ -53,6 +53,16 @@ Rust Coding Agent Work Plan
   - All current Rust source files are below 500 lines.
 
 10) Build validation
-- Status: Pending final verification
+- Status: Done
 - Output:
-  - Run cargo check and record result in IMPL.txt.
+  - Ran cargo check and recorded result in IMPL.txt.
+
+11) Advanced runtime parity completion pass
+- Status: Done with one partial area
+- Output:
+  - Implemented real `web_search`.
+  - Implemented real hook execution lifecycle.
+  - Implemented OpenAI-compatible LLM runtime with tool-call parsing and retries.
+  - Implemented MCP client/manager runtime with HTTP invocation + config-driven tool registration.
+  - Remaining partial:
+    - MCP stdio transport behavior is simplified compared to Python `fastmcp` flow.

@@ -1,0 +1,58 @@
+Implementation Status Log
+
+[2026-02-11] INIT
+- Created `rust-coding-agent` Cargo project.
+- Added dependencies and library module structure.
+
+[2026-02-11] CORE TOOLING
+- Implemented tool base framework in `src/tools/base.rs`.
+- Implemented builtin tools registry in `src/tools/builtin/mod.rs`.
+- Implemented builtin tools:
+  - `read_file`, `write_file`, `edit`, `shell`, `list_dir`, `grep`, `glob`, `web_search`, `web_fetch`, `todos`, `memory`.
+
+[2026-02-11] AGENT SURFACE
+- Implemented `src/registry.rs` for tool registration and invocation.
+- Implemented `src/session.rs` for session lifecycle and stats.
+- Implemented `src/agent.rs` for run loop event output.
+- Implemented `src/cli.rs` and slash-command command handling.
+- Updated `src/main.rs` to use clap + tokio runtime.
+
+[2026-02-11] PARITY SUPPORT MODULES
+- Added config loader in `src/config_loader.rs`.
+- Added response models in `src/client_response.rs`.
+- Added context modules:
+  - `src/context_manager.rs`
+  - `src/context_loop_detector.rs`
+  - `src/context_compaction.rs`
+- Added hooks stub in `src/hooks.rs`.
+- Added MCP stub in `src/mcp.rs`.
+- Added prompt builders in `src/prompts_system.rs`.
+- Added discovery stub in `src/tools_discovery.rs`.
+- Added utils text/path modules and error types.
+
+[2026-02-11] DOCS
+- Added `docs/PLAN.txt`.
+- Added `docs/API.txt` with Python-to-Rust parity summary and API list.
+- Added this `docs/IMPL.txt` log and configured as append-only progress tracker.
+
+[2026-02-11] PARITY GAP CLOSURE
+- Added config parity structs/enums in `src/config.rs`:
+  - `ModelConfig`, `ShellEnvironmentPolicy`, `MCPServerConfig`, `HookTrigger`, `HookConfig`.
+- Added MCP tool parity file: `src/tools/mcp_tool.rs` with `MCPTool`.
+- Added script parity binary: `src/bin/test_tool.rs` for tool-level invocation tests.
+
+[2026-02-11] VALIDATION
+- Ran `cargo check` successfully after all updates.
+- Build status: PASS.
+
+[2026-02-11] FUNCTION PARITY CHECK
+- Source of truth: Python function/class inventory from `ai-coding-agent` (102 entries).
+- Result:
+  - Rust API surface includes counterparts for all listed Python function/class entries.
+  - Behavioral parity status:
+    - Fully implemented core local/file/shell/session command flows.
+    - Partial/Stub areas remain for advanced runtime internals:
+      - LLM streaming internals
+      - MCP transport/tool execution internals
+      - Hook script execution internals
+      - Web search provider internals

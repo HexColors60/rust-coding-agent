@@ -1,0 +1,246 @@
+Rust Coding Agent API (Python Reference Parity)
+
+Legend
+- DONE: Implemented in Rust with working behavior.
+- PARTIAL: Implemented with reduced behavior.
+- STUB: API exists, internal behavior is placeholder.
+
+CLI Commands (Python main.py parity)
+- /help -> cli::Cli::handle_command DONE
+- /exit -> cli::Cli::handle_command DONE
+- /quit -> cli::Cli::handle_command DONE
+- /clear -> cli::Cli::handle_command DONE
+- /config -> cli::Cli::handle_command DONE
+- /model <name> -> cli::Cli::handle_command DONE
+- /approval <mode> -> cli::Cli::handle_command DONE
+- /stats -> cli::Cli::handle_command DONE
+- /tools -> cli::Cli::handle_command DONE
+- /mcp -> cli::Cli::handle_command DONE
+- /save -> cli::Cli::handle_command DONE
+- /sessions -> cli::Cli::handle_command DONE
+- /resume <session_id> -> cli::Cli::handle_command DONE
+- /checkpoint -> cli::Cli::handle_command DONE
+- /checkpoints -> cli::Cli::handle_command DONE
+- /restore <checkpoint_id> -> cli::Cli::handle_command DONE
+
+Tool Commands (Python tools/builtin parity)
+- read_file -> tools::builtin::read_file::ReadFileTool DONE
+- write_file -> tools::builtin::write_file::WriteFileTool DONE
+- edit -> tools::builtin::edit_file::EditTool DONE
+- shell -> tools::builtin::shell::ShellTool DONE
+- list_dir -> tools::builtin::list_dir::ListDirTool DONE
+- grep -> tools::builtin::grep::GrepTool DONE
+- glob -> tools::builtin::glob::GlobTool DONE
+- web_search -> tools::builtin::web_search::WebSearchTool STUB
+- web_fetch -> tools::builtin::web_fetch::WebFetchTool DONE
+- todos -> tools::builtin::todo::TodosTool DONE
+- memory -> tools::builtin::memory::MemoryTool DONE
+
+Core Rust Public APIs
+
+1) src/main.rs
+- main() -> entrypoint; loads config and runs CLI.
+
+2) src/config.rs
+- struct ModelConfig
+- struct ShellEnvironmentPolicy
+- struct MCPServerConfig
+- enum ApprovalPolicy { OnRequest, Auto, Never, Yolo }
+- enum HookTrigger
+- struct HookConfig
+- struct Config { model_name, temperature, approval, cwd, max_turns, hooks_enabled, allowed_tools }
+- Config::new(cwd) -> Result<Config>
+- Config::validate() -> Vec<String>
+
+3) src/config_loader.rs
+- get_config_dir() -> PathBuf
+- get_data_dir() -> PathBuf
+- get_system_config_path() -> PathBuf
+- parse_toml(path) -> Result<Value>
+- get_project_config(cwd) -> Option<PathBuf>
+- get_agent_md_files(cwd) -> Option<PathBuf>
+- merge_dicts(base, override_map) -> HashMap<String, Value>
+- load_config(cwd) -> Result<Config>
+
+4) src/agent.rs
+- enum AgentEventType
+- struct AgentEvent { event_type, data }
+- struct Agent { config, session, client }
+- Agent::new(config) -> Result<Agent>
+- Agent::run(message) -> Result<Vec<AgentEvent>> PARTIAL
+
+5) src/session.rs
+- struct Session
+- Session::new(config) -> Session
+- Session::initialize() -> Result<()>
+- Session::increment_turn() -> u32
+- Session::get_stats() -> Value
+
+6) src/persistence.rs
+- struct SessionSnapshot
+- struct PersistenceManager
+- PersistenceManager::new() -> Self
+- save_session(snapshot) -> Result<()>
+- load_session(session_id) -> Result<Option<SessionSnapshot>>
+- list_sessions() -> Result<Vec<Value>>
+- save_checkpoint(snapshot) -> Result<String>
+- load_checkpoint(checkpoint_id) -> Result<Option<SessionSnapshot>>
+- list_checkpoints() -> Result<Vec<Value>>
+
+7) src/registry.rs
+- struct ToolRegistry
+- ToolRegistry::new(config) -> Self
+- register(tool)
+- register_mcp_tool(tool)
+- unregister(name) -> bool
+- get(name) -> Option<Arc<dyn Tool>>
+- get_tools() -> Vec<Arc<dyn Tool>>
+- get_schemas() -> Vec<Value>
+- invoke(name, params, cwd, approval_manager) -> Result<ToolResult>
+- create_default_registry(config) -> ToolRegistry
+
+8) src/tools/base.rs
+- enum ToolKind
+- struct FileDiff
+- struct ToolResult + success_result/error_result/to_model_output
+- struct ToolInvocation
+- struct ToolConfirmation
+- trait Tool { name, description, kind, schema, is_mutating, get_confirmation, execute }
+
+9) src/tools/subagents.rs
+- struct SubagentDefinition
+- struct SubagentTool
+- get_default_subagent_definitions() -> Vec<SubagentDefinition>
+- get_subagent_tools(config) -> Vec<Arc<dyn Tool>>
+
+10) src/tools/builtin/*.rs
+- read_file::ReadFileTool::execute
+- write_file::WriteFileTool::{get_confirmation, execute}
+- edit_file::EditTool::{get_confirmation, execute}
+- shell::ShellTool::{get_confirmation, execute}
+- list_dir::ListDirTool::execute
+- grep::GrepTool::execute
+- glob::GlobTool::execute
+- web_search::WebSearchTool::execute STUB
+- web_fetch::WebFetchTool::execute
+- todo::TodosTool::execute
+- memory::MemoryTool::execute
+- builtin::get_all_builtin_tools(config)
+
+11) src/approval.rs
+- enum ApprovalDecision
+- struct ApprovalContext
+- is_dangerous_command(command) -> bool
+- is_safe_command(command) -> bool
+- struct ApprovalManager
+- ApprovalManager::new(policy, cwd) -> Self
+- ApprovalManager::check_approval(ctx) -> ApprovalDecision
+- ApprovalManager::request_confirmation(ctx) -> bool PARTIAL
+
+12) src/context_manager.rs
+- struct MessageItem
+- struct ContextManager
+- ContextManager::new(system_prompt)
+- add_user_message(content)
+- add_assistant_message(content, tool_calls)
+- add_tool_result(tool_call_id, content)
+- get_messages() -> Vec<Value>
+- clear()
+- message_count() -> usize
+
+13) src/context_loop_detector.rs
+- struct LoopDetector
+- LoopDetector::new()
+- record_action(action)
+- clear()
+- has_loop() -> bool
+
+14) src/context_compaction.rs
+- struct ChatCompactor
+- ChatCompactor::new()
+- ChatCompactor::compact(messages, target_tokens) -> Result<String> PARTIAL
+
+15) src/client_response.rs
+- struct TextDelta
+- enum StreamEventType
+- struct TokenUsage
+- struct ToolCallDelta
+- struct ToolCall
+- struct StreamEvent
+- struct ToolResultMessage
+- parse_tool_call_arguments(arguments_str) -> Map<String, Value>
+
+16) src/client_llm.rs
+- struct LLMClient
+- LLMClient::new(config)
+- LLMClient::chat(messages, tools) -> Result<Vec<StreamEvent>> STUB
+- LLMClient::close() -> Result<()>
+
+17) src/tui.rs
+- get_console()
+- struct Tui
+- Tui::{new, print_welcome, begin_assistant, end_assistant, stream_assistant_delta}
+- Tui::{tool_call_start, tool_call_complete, handle_confirmation, show_help}
+
+18) src/hooks.rs
+- enum HookTrigger
+- struct HookSystem
+- HookSystem::{new, trigger_before_run, trigger_after_run, trigger_before_tool, trigger_after_tool, trigger_on_error} STUB
+
+19) src/mcp.rs
+- enum MCPServerStatus
+- struct MCPToolInfo
+- struct MCPClient::{new, connect}
+- struct MCPManager::{new, initialize, shutdown, get_all_servers} STUB/PARTIAL
+
+19.1) src/tools/mcp_tool.rs
+- struct MCPTool
+- MCPTool::new(tool_name, tool_description, tool_schema)
+- impl Tool for MCPTool::execute STUB
+
+20) src/prompts_system.rs
+- get_system_prompt(...)
+- get_identity_section()
+- get_environment_section()
+- get_shell_info()
+- get_agents_md_section()
+- get_security_section()
+- get_operational_section()
+- get_developer_instructions_section(instructions)
+- get_user_instructions_section(instructions)
+- get_memory_section(memory)
+- get_tool_guidelines_section(tools)
+- get_compression_prompt()
+- create_loop_breaker_prompt(loop_description)
+
+21) src/tools_discovery.rs
+- struct ToolDiscoveryManager
+- ToolDiscoveryManager::new()
+- ToolDiscoveryManager::discover_all() -> Result<()> STUB
+
+22) src/utils_paths.rs
+- resolve_path(base, path) -> PathBuf
+- display_path_rel_to_cwd(path, cwd) -> String
+- ensure_parent_directory(path) -> io::Result<()>
+- is_binary_file(path) -> bool
+
+23) src/utils_text.rs
+- get_tokenizer(model) -> &str
+- count_tokens(text, model) -> usize
+- estimate_tokens(text) -> usize
+- truncate_text(text, target_tokens, suffix, model) -> String
+- truncate_by_lines(text, target_tokens, suffix, model) -> String
+- truncate_by_chars(text, target_tokens, suffix, model) -> String
+
+24) src/errors.rs
+- struct AgentError
+- struct ConfigError
+
+25) src/bin/test_tool.rs
+- main() -> standalone tool invocation tester (Python `scripts/test_tool.py` parity)
+
+Python Function/Class Parity Summary
+- Total Python function/class entries detected: 102
+- Rust parity coverage:
+  - API-present (DONE/PARTIAL/STUB): 102
+  - Full behavioral parity: not complete (advanced runtime integrations remain PARTIAL/STUB)

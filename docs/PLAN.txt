@@ -1,0 +1,58 @@
+Rust Coding Agent Work Plan
+
+1) Project scaffolding and dependency setup
+- Status: Done
+- Output:
+  - Cargo project created.
+  - Core dependencies added in Cargo.toml.
+
+2) Core tool framework parity
+- Status: Done
+- Output:
+  - Implemented ToolKind, ToolResult, ToolInvocation, ToolConfirmation, Tool trait.
+  - Implemented ToolRegistry + create_default_registry.
+
+3) Built-in tools parity (commands + APIs)
+- Status: Done
+- Output:
+  - read_file, write_file, edit, shell, list_dir, grep, glob, web_search, web_fetch, todos, memory.
+  - Tool names are aligned with Python version.
+
+4) Subagent parity
+- Status: Done
+- Output:
+  - subagent_codebase_investigator
+  - subagent_code_reviewer
+  - default definitions + limits included.
+
+5) Session + persistence parity
+- Status: Done
+- Output:
+  - Session lifecycle, stats, turn tracking.
+  - save/list/load session.
+  - save/list/load checkpoint.
+
+6) CLI parity (slash commands)
+- Status: Done
+- Output:
+  - /help /exit /quit /clear /config /model /approval /stats /tools /mcp /save /sessions /resume /checkpoint /checkpoints /restore
+
+7) Parity support modules
+- Status: Done
+- Output:
+  - config loader, response models, context manager, loop detector, compactor, hooks, MCP, prompt builders, errors.
+
+8) Parity verification against Python functions/classes
+- Status: Done with caveats
+- Caveat:
+  - Several advanced flows are implemented as placeholders/stubs (LLM streaming internals, MCP transport internals, hook script execution internals, web_search backend behavior).
+
+9) File size rule compliance
+- Status: Done
+- Output:
+  - All current Rust source files are below 500 lines.
+
+10) Build validation
+- Status: Pending final verification
+- Output:
+  - Run cargo check and record result in IMPL.txt.

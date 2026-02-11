@@ -1,0 +1,81 @@
+Rust vs Python Parity Review
+Date: 2026-02-11
+Scope: Full re-review of Rust implementation against Python function/class parity target.
+
+Summary
+- API presence parity remains complete (102/102 entries mapped).
+- Major runtime gaps were re-audited and partially/fully implemented in this pass.
+- Remaining gaps are now focused on deeper behavioral fidelity rather than missing APIs.
+
+Findings (Python has, Rust not fully matching yet)
+
+1) Streaming LLM delta semantics
+- Python status:
+  - `LLMClient.chat_completion` supports streaming events (`TEXT_DELTA`, tool-call deltas, message complete).
+- Rust status:
+  - Added SSE stream parsing with delta/tool-call chunk handling plus non-stream fallback.
+- Gap:
+  - Stream parser is implemented but not yet validated against all provider-specific chunk shapes.
+- Priority: High
+- Current state: PARTIAL
+
+2) MCP stdio/SSE transport fidelity
+- Python status:
+  - Uses `fastmcp` client transports with real MCP protocol calls and `list_tools`.
+- Rust status:
+  - HTTP path is functional.
+  - stdio path currently shell-exec based and env-payload driven.
+- Gap:
+  - Not full MCP protocol parity for stdio/SSE.
+- Priority: High
+- Current state: PARTIAL
+
+3) Tool discovery runtime registration
+- Python status:
+  - Dynamic tool discovery manager loads discovered tools into registry.
+- Rust status:
+  - Discovery now scans/validates manifest files but does not register executable discovered tools.
+- Gap:
+  - No dynamic discovered tool execution path yet.
+- Priority: Medium
+- Current state: PARTIAL
+
+4) Context compaction strategy depth
+- Python status:
+  - More advanced compaction flow integrated with token budgeting and context pruning behavior.
+- Rust status:
+  - Improved role-aware truncation implemented.
+- Gap:
+  - Lacks full parity around nuanced pruning/compression strategy and integration points.
+- Priority: Medium
+- Current state: PARTIAL
+
+5) TUI rendering fidelity
+- Python status:
+  - Rich formatted panels, syntax blocks, detailed tool visuals.
+- Rust status:
+  - Plain-text TUI behavior.
+- Gap:
+  - Reduced UX and output formatting fidelity.
+- Priority: Low
+- Current state: PARTIAL
+
+Implemented During This Review Pass
+- `approval.rs`
+  - Added interactive confirmation prompt for `NeedsConfirmation` operations.
+- `tools/subagents.rs`
+  - Replaced placeholder with real subagent execution (nested agent run + timeout + result/tool summary).
+- `mcp.rs`
+  - Started practical stdio invocation behavior for tool calls (env payload + stdout/stderr handling).
+- `tools_discovery.rs`
+  - Added manifest-based discovery scan and validation (first step toward dynamic registration).
+- `context_compaction.rs`
+  - Added role-aware compaction and token-bounded truncation behavior.
+- `config_loader.rs`
+  - Added system/project TOML loading and partial config overlay merge.
+
+Next Implementation Targets
+1. Implement true stream-mode LLM event parsing (`delta` text + tool call argument chunks).
+2. Implement protocol-level MCP stdio/SSE client behavior (not shell-wrapper emulation).
+3. Add discovered tool registration/execution model to registry.
+4. Upgrade TUI output formatting parity.
